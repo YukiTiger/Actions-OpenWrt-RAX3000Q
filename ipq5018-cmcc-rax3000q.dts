@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: (GPL-2.0+)
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
 /dts-v1/;
 
@@ -12,50 +12,60 @@
 
 	aliases {
 		serial0 = &blsp1_uart1;
-		led-boot = &led_system_green;
-		led-failsafe = &led_system_red;
-		led-running = &led_system_green;
-		led-upgrade = &led_system_blue;
+		led-boot = &led_status_green;
+		led-failsafe = &led_status_red;
+		led-running = &led_status_green;
+		led-upgrade = &led_status_blue;
 	};
 
 	chosen {
 		stdout-path = "serial0:115200n8";
+		bootargs-append = " coherent_pool=2M";
 	};
 
+	// 内存保留区域，用于WiFi固件
+	reserved-memory {
+		// 为Q6 DSP预留内存
+		q6_mem_regions: q6_mem_regions@4b000000 {
+			no-map;
+			reg = <0x0 0x4b000000 0x0 0x3b00000>;
+		};
+	};
+
+	// LED 配置
 	leds {
 		compatible = "gpio-leds";
 
-		led_system_red: system_red {
-			label = "red:system";
+		led_status_red: status_red {
+			label = "red:status";
 			gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_system_green: system_green {
-			label = "green:system";
+		led_status_green: status_green {
+			label = "green:status";
 			gpios = <&tlmm 19 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_system_blue: system_blue {
-			label = "blue:internet";
+		led_status_blue: status_blue {
+			label = "blue:status";
 			gpios = <&tlmm 17 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
+	// 按键配置
 	keys {
 		compatible = "gpio-keys";
 
-		button_reset {
+		reset {
 			label = "reset";
 			gpios = <&tlmm 23 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_RESTART>;
-			debounce-interval = <60>;
 		};
 
-		button_mesh {
+		mesh {
 			label = "mesh";
 			gpios = <&tlmm 38 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_WPS_BUTTON>;
-			debounce-interval = <60>;
 		};
 	};
 };
@@ -66,16 +76,178 @@
 	status = "okay";
 };
 
-/* 现代主线网卡驱动 EDMA */
-&edma {
+&qpic_bam {
 	status = "okay";
 };
 
-/* CPU 网口连接到 QCA8337 交换机芯片 */
+// NAND 闪存控制器配置
+&nand {
+	pinctrl-0 = <&qspi_nand_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	nand@0 {
+		reg = <0>;
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/*
+		 * 此处使用OpenWrt的闪存分区布局。
+		 * 具体的mtd分区定义通常在target/linux/ipq50xx/image/ipq5018.mk
+		 * 或通过DTS中的分区节点定义。
+		 * 请根据实际使用的固件布局调整。
+		 */
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "0:SBL1";
+				reg = <0x0000000 0x80000>;
+				read-only;
+			};
+
+			partition@80000 {
+				label = "0:MIBIB";
+				reg = <0x80000 0x80000>;
+				read-only;
+			};
+
+			partition@100000 {
+				label = "0:BOOTCONFIG";
+				reg = <0x100000 0x40000>;
+				read-only;
+			};
+
+			partition@140000 {
+				label = "0:BOOTCONFIG1";
+				reg = <0x140000 0x40000>;
+				read-only;
+			};
+
+			partition@180000 {
+				label = "0:QSEE";
+				reg = <0x180000 0x100000>;
+				read-only;
+			};
+
+			partition@280000 {
+				label = "0:QSEE_1";
+				reg = <0x280000 0x100000>;
+				read-only;
+			};
+
+			partition@380000 {
+				label = "0:DEVCFG";
+				reg = <0x380000 0x40000>;
+				read-only;
+			};
+
+			partition@3c0000 {
+				label = "0:DEVCFG_1";
+				reg = <0x3c0000 0x40000>;
+				read-only;
+			};
+
+			partition@400000 {
+				label = "0:CDT";
+				reg = <0x400000 0x40000>;
+				read-only;
+			};
+
+			partition@440000 {
+				label = "0:CDT_1";
+				reg = <0x440000 0x40000>;
+				read-only;
+			};
+
+			partition@480000 {
+				label = "0:APPSBLENV";
+				reg = <0x480000 0x80000>;
+				read-only;
+			};
+
+			partition@500000 {
+				label = "0:APPSBL";
+				reg = <0x500000 0x140000>;
+				read-only;
+			};
+
+			partition@640000 {
+				label = "0:APPSBL_1";
+				reg = <0x640000 0x140000>;
+				read-only;
+			};
+
+			partition@780000 {
+				label = "0:ART";
+				reg = <0x780000 0x100000>;
+				read-only;
+			};
+
+			partition@880000 {
+				label = "0:TRAINING";
+				reg = <0x880000 0x80000>;
+				read-only;
+			};
+
+			/*
+			 * 固件分区 (包含kernel, rootfs等)
+			 * 大小和位置可能因固件而异，请根据实际情况调整
+			 */
+			partition@900000 {
+				label = "firmware";
+				reg = <0x900000 0x6000000>;
+			};
+		};
+	};
+};
+
+// 温度传感器
+&tsens {
+	status = "okay";
+};
+
+// 以太网 MDIO 总线
+&mdio {
+	status = "okay";
+	pinctrl-0 = <&mdio1_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
+
+	// 外部 QCA8337 交换机
+	switch@10 {
+		compatible = "qca,qca8337";
+		reg = <0x10>;
+	};
+};
+
+// ESS 交换机实例 (用于内部MAC配置)
+&ess_switch {
+	status = "okay";
+
+	switch_mac_mode = <0xf>; // PORT_WRAPPER_SGMII_CHANNEL0
+
+	// CPU端口连接到内部MAC
+	port@0 {
+		status = "okay";
+		label = "cpu";
+		reg = <0>;
+		phy-mode = "sgmii";
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+};
+
+// GMAC1 (用于连接外部交换机)
 &gmac1 {
 	status = "okay";
 	phy-mode = "sgmii";
-	label = "cpu";
 
 	fixed-link {
 		speed = <1000>;
@@ -83,101 +255,49 @@
 	};
 };
 
-/* 现代标准的 DSA 交换机芯片配置 */
-&mdio {
-	status = "okay";
-	pinctrl-0 = <&mdio1_pins>;
-	pinctrl-names = "default";
-	reset-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
-
-	switch@10 {
-		compatible = "qcom,qca8337";
-		reg = <0x10>;
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			port@0 {
-				reg = <0>;
-				label = "cpu";
-				ethernet = <&gmac1>;
-				phy-mode = "sgmii";
-
-				fixed-link {
-					speed = <1000>;
-					full-duplex;
-				};
-			};
-
-			/* 映射 WAN 口 */
-			port@1 {
-				reg = <1>;
-				label = "wan";
-			};
-
-			/* 映射 LAN1 - LAN3 口 */
-			port@2 {
-				reg = <2>;
-				label = "lan1";
-			};
-
-			port@4 {
-				reg = <4>;
-				label = "lan2";
-			};
-
-			port@5 {
-				reg = <5>;
-				label = "lan3";
-			};
-		};
-	};
-};
-
-&qpic_bam {
-	status = "okay";
-};
-
-/* 闪存节点现代化改造：使用 SMEM 动态解析 */
-&spi0 {
-	status = "okay";
-
-	flash@0 {
-		compatible = "spi-nand";
-		reg = <0>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-		spi-max-frequency = <50000000>;
-
-		/* 引入高通标准的 SMEM 动态分区解析器，取代硬编码分区 */
-		partitions {
-			compatible = "qcom,smem-part";
-		};
-	};
-};
-
-/* UBI 自动挂载声明：接管 SMEM 解析出的 rootfs 块 */
-&smem_uboot_part {
-	compatible = "fixed-partitions";
-	#address-cells = <1>;
-	#size-cells = <1>;
-
-	partition@rootfs {
-		compatible = "ubi";
-		label = "rootfs";
-	};
-};
-
-&tsens {
-	status = "okay";
-};
-
-/* 抛弃高通私有的闭源大块，直接使用开源 ath11k 无线生态 */
+// 无线配置 (ath11k驱动)
 &wifi0 {
 	status = "okay";
+	qcom,board_id = <0x24>;
 };
 
 &wifi1 {
 	status = "okay";
+	qcom,board_id = <0x60>;
+};
+
+// Q6 DSP 配置 (用于WiFi固件)
+&q6v5_wcss {
+	status = "okay";
+	memory-region = <&q6_mem_regions>;
+};
+
+// 引脚配置
+&tlmm {
+	blsp_uart0_pins: blsp_uart0_pins {
+		mux {
+			pins = "gpio28", "gpio29";
+			function = "blsp0_uart1";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+
+	qspi_nand_pins: qspi_nand_pins {
+		mux {
+			pins = "gpio9", "gpio8", "gpio7", "gpio6", "gpio5", "gpio4";
+			function = "qspi";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+
+	mdio1_pins: mdio1_pins {
+		mux {
+			pins = "gpio36", "gpio37";
+			function = "mdio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
 };
