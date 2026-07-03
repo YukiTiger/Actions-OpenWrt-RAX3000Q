@@ -51,4 +51,61 @@ else
     echo "[+] cmcc_rax3000q already defined"
 fi
 
+# Add WiFi calibration data patch for proper MAC address handling
+echo "[*] Adding WiFi calibration data patch..."
+mkdir -p patches/openwrt/
+
+cat << 'EOF' > patches/openwrt/001-rax3000q-caldata.patch
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenWrt Builder <builder@example.com>
+Date: Thu, 03 Jul 2026 00:00:00 +0800
+Subject: [PATCH] qualcommax: ipq50xx: rax3000q: add caldata entries with MAC patching
+
+Add proper calibration data extraction and MAC address handling for CMCC RAX3000Q.
+The device requires:
+- Calibration data extraction from ART partition
+- MAC address patching (using label_mac + offset)
+- Regdomain removal from calibration data
+- Proper macflag setting for ath11k
+
+This ensures stable WiFi operation with consistent MAC addresses across reboots.
+
+---
+ target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+--- a/target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
++++ b/target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
+@@ -48,6 +48,13 @@ case "$FIRMWARE" in
+ 	xiaomi,ax6000)
+ 		caldata_extract "0:art" 0x1000 0x20000
+ 		;;
++	cmcc,rax3000q)
++		caldata_extract "0:art" 0x1000 0x20000
++		label_mac=$(mtd_get_mac_binary 0:art 0)
++		ath11k_patch_mac $(macaddr_add $label_mac 2) 0
++		ath11k_remove_regdomain
++		ath11k_set_macflag
++		;;
+ 	yuncore,ax830|\
+ 	yuncore,ax850)
+ 		caldata_extract "0:ART" 0x1000 0x20000
+@@ -95,6 +102,13 @@ case "$FIRMWARE" in
+ 		ath11k_remove_regdomain
+ 		ath11k_set_macflag
+ 		;;
++	cmcc,rax3000q)
++		caldata_extract "0:art" 0x26800 0x20000
++		label_mac=$(mtd_get_mac_binary 0:art 0)
++		ath11k_patch_mac $(macaddr_add $label_mac 3) 0
++		ath11k_remove_regdomain
++		ath11k_set_macflag
++		;;
+ 	yuncore,ax830)
+ 		caldata_extract "0:ART" 0x4c000 0x20000
+ 		label_mac=$(mtd_get_mac_binary 0:ART 0)
+EOF
+
+echo "[+] WiFi calibration data patch created at patches/openwrt/001-rax3000q-caldata.patch"
+
 echo "[*] Device tree setup complete"
