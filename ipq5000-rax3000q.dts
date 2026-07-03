@@ -253,12 +253,15 @@
 	num_devices = <2>;
 };
 
-/* WiFi configuration - if available in base DTS */
+/* WiFi configuration - Fixed with proper calibration variant */
 &wifi0 {
 	qcom,multipd_arch;
 	qcom,rproc = <&q6_wcss_pd1>;
 	qcom,userpd-subsys-name = "q6v5_wcss_userpd1";
 
+	/* Calibration variant for CMCC RAX3000Q */
+	qcom,ath11k-calibration-variant = "CMCC-RAX3000Q";
+	
 	qcom,board_id = <0x24>;
 
 	qcom,bdf-addr = <0x4c400000 0x4c400000 0x4c400000>;
@@ -277,6 +280,9 @@
 	qcom,rproc = <&q6_wcss_pd2>;
 	qcom,userpd-subsys-name = "q6v5_wcss_userpd2";
 
+	/* Calibration variant for CMCC RAX3000Q */
+	qcom,ath11k-calibration-variant = "CMCC-RAX3000Q";
+	
 	qcom,board_id = <0x60>;
 
 	qcom,bdf-addr = <0x4d500000 0x4d500000 0x4d100000>;
