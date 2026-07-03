@@ -1,36 +1,54 @@
 #!/bin/bash
-set -e  # 遇到错误立即退出
+set -e  # Exit immediately on error
 
-# 确保 DTS 文件存在并复制到正确位置
+echo "[*] Setting up device tree and build configuration..."
+
+# Create necessary directories
 mkdir -p target/linux/qualcommax/dts/
+mkdir -p target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/
+
+# Copy DTS file to proper location for OpenWrt 25.12
+echo "[*] Copying DTS file..."
 cp -f $GITHUB_WORKSPACE/ipq5000-rax3000q.dts target/linux/qualcommax/dts/
 
-# 同时复制到内核编译时需要的路径（这在 feeds install 后会自动处理）
-cp -f $GITHUB_WORKSPACE/ipq5000-rax3000q.dts target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/
-# 但为了更加可靠，建议在这里也添加对内核源码的引用
-
-# 确保设备树会被编译进内核配置
-if ! grep -q "CONFIG_ARCH_IPQXXX" .config 2>/dev/null; then
-    # 可以在这里添加设备树相关配置
-    :
+# Verify base device tree exists
+if [ -f "target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq5018.dtsi" ]; then
+    echo "[+] Base ipq5018.dtsi found"
+    # Check for required components
+    echo "[*] Checking base DTB for required labels..."
+    grep -q "&wifi0" target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq5018.dtsi && echo "[+] wifi0 found" || echo "[!] wifi0 not in base (may be defined elsewhere)"
+    grep -q "&nand" target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq5018.dtsi && echo "[+] nand found" || echo "[!] nand not in base"
+    grep -q "&dp1" target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq5018.dtsi && echo "[+] dp1/dp2 (MAC) found" || echo "[!] MAC nodes not in base"
+else
+    echo "[!] Warning: Base ipq5018.dtsi not found at expected location"
 fi
 
-# 向 ipq50xx.mk 追加设备定义（如果不存在）
+# Add device definition to build system if not present
+echo "[*] Checking device definition in ipq50xx.mk..."
 if ! grep -q "define Device/cmcc_rax3000q" target/linux/qualcommax/image/ipq50xx.mk; then
-cat << 'EOF' >> target/linux/qualcommax/image/ipq50xx.mk
+    echo "[*] Adding cmcc_rax3000q device definition..."
+    cat << 'EOF' >> target/linux/qualcommax/image/ipq50xx.mk
 
 define Device/cmcc_rax3000q
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
-	SOC := ipq50xx
+	SOC := ipq5018
 	DEVICE_VENDOR := CMCC
 	DEVICE_MODEL := RAX3000Q
-	DEVICE_DTS := ipq5000-rax3000q
+	DEVICE_DTS_CONFIG := config@mp02.1
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	IMAGES := nand-factory.ubi
-	DEVICE_PACKAGES := kmod-ath11k-ahb kmod-ath11k-pci ath11k-firmware
+	DEVICE_PACKAGES := \
+		ath11k-firmware-ipq5018 \
+		ath11k-firmware-qcn6122 \
+		ipq-wifi-cmcc_rax3000q
 endef
 TARGET_DEVICES += cmcc_rax3000q
 EOF
+    echo "[+] Device definition added"
+else
+    echo "[+] cmcc_rax3000q already defined"
 fi
+
+echo "[*] Device tree setup complete"

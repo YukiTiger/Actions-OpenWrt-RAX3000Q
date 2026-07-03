@@ -17,8 +17,8 @@
 	aliases {
 		serial0 = &blsp1_uart1;
 
-		ethernet0 = &mac0;
-		ethernet1 = &mac1;
+		ethernet0 = &dp1;
+		ethernet1 = &dp2;
 
 		led-boot = &led_status_green;
 		led-failsafe = &led_status_red;
@@ -41,14 +41,6 @@
 #endif
 		};
 	};
-
-	thermal-zones {
-		status = "ok";
-	};
-};
-
-&tmc_etr {
-	/delete-property/ memory-region;
 };
 
 &blsp1_uart1 {
@@ -61,6 +53,7 @@
 	status = "okay";
 };
 
+/* NAND flash configuration */
 &nand {
 	pinctrl-0 = <&qspi_nand_pins>;
 	pinctrl-names = "default";
@@ -203,149 +196,13 @@
 			debounce-interval = <60>;
 		};
 	};
-
-	ess-instance {
-		num_devices = <2>;
-
-		/* Dummy switch, to describe how the external ports connect to the MAC */
-		/* For IPQ50xx, this is used to choose SGMII or SGMII-plus */
-		ess-switch@0x39c00000 {
-			compatible = "qcom,ess-switch-ipq50xx";
-			device_id = <0>;
-
-			cmnblk_clk = "internal_96MHz";
-
-			/* MAC1 Mode */
-			/* switch_mac_mode = <0xc>; */ /* PORT_WRAPPER_SGMII_PLUS */
-			switch_mac_mode = <0xf>; /* PORT_WRAPPER_SGMII_CHANNEL0 */
-
-			qcom,port_phyinfo {
-				/* MAC0 -> GE Phy -> QCA8337 Phy2 */
-				port@0 {
-					port_id = <1>;
-
-					mdiobus = <&mdio0>;
-					phy_address = <7>;
-
-					phy_dac = <0x10 0x10>;
-				};
-
-				/* MAC1 ---SGMII---> QCA8337 SerDes */
-				port@1 {
-					port_id = <2>;
-
-					forced-speed = <1000>;
-					forced-duplex = <1>;
-				};
-			};
-		};
-
-		/* QCA8337 */
-		ess-switch1@1 {
-			compatible = "qcom,ess-switch-qca83xx";
-			device_id = <1>;
-
-			reset_gpio = <26>;
-
-			switch_access_mode = "mdio";
-			mdio-bus = <&mdio1>;
-
-			qca,ar8327-initvals = <
-				0x000c 0x00000080  /* PAD6_MODE = MAC6_SGMII_EN */
-				0x0010 0x002613a0  /* PWS_REG = DEFAULT_VALUE | SERDES_AEN */
-				0x0094 0x000010ce  /* PORT6_STATUS = DEFAULT_VALUE | DUPLEX_MODE_6 | RXMAC_EN_6 | */
-						    /*                TXMAC_EN_6 | SPEED_6(1000M) */
-				0x00e0 0xc74164de  /* SGMII_CTRL = DEFAULT_VALUE | MODE_CTRL_25M(SGMII_PHY) | SGMII_EN_SD | */
-						    /*              SGMII_EN_TX | SGMII_EN_RX | SGMII_EN_PLL */
-			>;
-
-			switch_cpu_bmp = <0x48>;  /* CPU port bitmap: 3 6 */
-			switch_lan_bmp = <0x34>;  /* LAN port bitmap: 2 4 5 */
-			switch_wan_bmp = <0x02>;  /* WAN port bitmap: 1 */
-
-			qcom,port_phyinfo {
-				/* MAC1 -> Phy0 -> WAN */
-				port@1 {
-					port_id = <1>;
-					phy_address = <0>;
-				};
-
-				/* MAC2 -> Phy1 -> LAN1 */
-				port@2 {
-					port_id = <2>;
-					phy_address = <1>;
-				};
-
-				/* MAC3 -> Phy2 -> IPQ5018 GE Phy */
-				port@3 {
-					port_id = <3>;
-					phy_address = <2>;
-				};
-
-				/* MAC4 -> Phy3 -> LAN2 */
-				port@4 {
-					port_id = <4>;
-					phy_address = <3>;
-				};
-
-				/* MAC5 -> Phy4 -> LAN3 */
-				port@5 {
-					port_id = <5>;
-					phy_address = <4>;
-				};
-
-				/* MAC6 ---SGMII---> IPQ5018 MAC1 */
-				port@6 {
-					port_id = <6>;
-
-					forced-speed = <1000>;
-					forced-duplex = <1>;
-				};
-			};
-		};
-	};
-
-	/* MAC0 -> GE Phy */
-	mac0: dp1 {
-		compatible = "qcom,nss-dp";
-		device_type = "network";
-		qcom,id = <1>;
-
-		reg = <0x39C00000 0x10000>;
-		interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&gcc GCC_SNOC_GMAC0_AXI_CLK>;
-		clock-names = "nss-snoc-gmac-axi-clk";
-
-		qcom,mactype = <2>; /* GMAC_HAL_TYPE_SYN_GMAC */
-		local-mac-address = [000000000000];
-		mdio-bus = <&mdio0>;
-		qcom,phy-mdio-addr = <7>;
-		phy-mode = "internal";
-		qcom,link-poll = <1>;
-	};
-
-	/* MAC1 ---SGMII---> QCA8337 SerDes */
-	mac1: dp2 {
-		compatible = "qcom,nss-dp";
-		device_type = "network";
-		qcom,id = <2>;
-
-		reg = <0x39D00000 0x10000>;
-		interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&gcc GCC_SNOC_GMAC1_AXI_CLK>;
-		clock-names = "nss-snoc-gmac-axi-clk";
-
-		qcom,mactype = <2>; /* GMAC_HAL_TYPE_SYN_GMAC */
-		local-mac-address = [000000000000];
-		phy-mode = "sgmii";
-	};
 };
 
 &mdio0 {
 	status = "okay";
 
-	/* IPQ5018 GE Phy -> QCA8337 Phy2 */
-	ethernet-phy@0 {
+	/* IPQ5018 GE Phy */
+	ethernet-phy@7 {
 		reg = <7>;
 	};
 };
@@ -383,141 +240,21 @@
 	};
 };
 
-&q6v5_wcss {
-	compatible = "qcom,ipq5018-q6-mpd";
-	#address-cells = <1>;
-	#size-cells = <1>;
-	ranges;
-
-	resets =
-		<&gcc GCC_WCSSAON_RESET>,
-		<&gcc GCC_WCSS_Q6_BCR>;
-	reset-names =
-		"wcss_aon_reset",
-		"wcss_q6_reset";
-
-	clocks =
-		<&gcc GCC_Q6_AXIS_CLK>,
-		<&gcc GCC_WCSS_ECAHB_CLK>,
-		<&gcc GCC_Q6_AXIM_CLK>,
-		<&gcc GCC_Q6_AXIM2_CLK>,
-		<&gcc GCC_Q6_AHB_CLK>,
-		<&gcc GCC_Q6_AHB_S_CLK>,
-		<&gcc GCC_WCSS_AXI_S_CLK>;
-	clock-names =
-		"gcc_q6_axis_clk",
-		"gcc_wcss_ecahb_clk",
-		"gcc_q6_axim_clk",
-		"gcc_q6_axim2_clk",
-		"gcc_q6_ahb_clk",
-		"gcc_q6_ahb_s_clk",
-		"gcc_wcss_axi_s_clk";
-
-	reg =
-		<0x0cd00000 0x4040>,
-		<0x1938000 0x8>,
-		<0x193d204 0x4>;
-	reg-names =
-		"qdsp6",
-		"tcsr-msip",
-		"tcsr-q6";
-
-	memory-region = <&q6_mem_regions>;
-
-	qcom,rproc = <&q6v5_wcss>;
-	firmware = "IPQ5018/q6_fw.mdt";
-
-	qcom,bootargs_smem = <507>;
-	boot-args = </*       type: */ 0x2 /* PCIE1 */
-		     /*     length: */ 4
-		     /*      PD id: */ 2
-		     /* reset GPIO: */ 27
-		     /*   reserved: */ 0 0>;
-
+&dp1 {
 	status = "okay";
-
-	/* IPQ5018 */
-	q6_wcss_pd1: remoteproc_pd1@4ab000 {
-		compatible = "qcom,ipq5018-wcss-ahb-mpd";
-
-		resets =
-			<&gcc GCC_WCSSAON_RESET>,
-			<&gcc GCC_WCSS_BCR>,
-			<&gcc GCC_CE_BCR>;
-		reset-names =
-			"wcss_aon_reset",
-			"wcss_reset",
-			"ce_reset";
-
-		clocks =
-			<&gcc GCC_WCSS_AHB_S_CLK>,
-			<&gcc GCC_WCSS_ACMT_CLK>,
-			<&gcc GCC_WCSS_AXI_M_CLK>;
-		clock-names =
-			"gcc_wcss_ahb_s_clk",
-			"gcc_wcss_acmt_clk",
-			"gcc_wcss_axi_m_clk";
-
-		reg = <0x4ab000 0x20>;
-		reg-names = "rmb";
-
-		qcom,halt-regs = <&tcsr_q6_block 0xa000 0xd000 0x0>;
-
-		interrupts-extended =
-			<&wcss_smp2p_in 8 0>,
-			<&wcss_smp2p_in 9 0>,
-			<&wcss_smp2p_in 12 0>,
-			<&wcss_smp2p_in 11 0>;
-		interrupt-names =
-			"fatal",
-			"ready",
-			"spawn-ack",
-			"stop-ack";
-
-		qcom,smem-states =
-			<&wcss_smp2p_out 8>,
-			<&wcss_smp2p_out 9>,
-			<&wcss_smp2p_out 10>;
-		qcom,smem-state-names =
-			"shutdown",
-			"stop",
-			"spawn";
-
-		firmware = "IPQ5018/q6_fw.mdt";
-		m3_firmware = "IPQ5018/m3_fw.mdt";
-	};
-
-	/* QCN6102 */
-	q6_wcss_pd2: remoteproc_pd2 {
-		compatible = "qcom,ipq5018-wcss-pcie-mpd";
-
-		interrupts-extended =
-			<&wcss_smp2p_in 16 0>,
-			<&wcss_smp2p_in 17 0>,
-			<&wcss_smp2p_in 20 0>,
-			<&wcss_smp2p_in 19 0>;
-		interrupt-names =
-			"fatal",
-			"ready",
-			"spawn-ack",
-			"stop-ack";
-
-		qcom,smem-states =
-			<&wcss_smp2p_out 16>,
-			<&wcss_smp2p_out 17>,
-			<&wcss_smp2p_out 18>;
-		qcom,smem-state-names =
-			"shutdown",
-			"stop",
-			"spawn";
-
-		firmware = "IPQ5018/q6_fw.mdt";
-		m3_firmware = "qcn6122/m3_fw.mdt";
-	};
+	phy-handle = <&ge_phy>;
 };
 
+&dp2 {
+	status = "okay";
+};
+
+&ess_instance {
+	num_devices = <2>;
+};
+
+/* WiFi configuration - if available in base DTS */
 &wifi0 {
-	/* IPQ5018 */
 	qcom,multipd_arch;
 	qcom,rproc = <&q6_wcss_pd1>;
 	qcom,userpd-subsys-name = "q6v5_wcss_userpd1";
@@ -536,7 +273,6 @@
 };
 
 &wifi1 {
-	/* QCN6102 */
 	qcom,multipd_arch;
 	qcom,rproc = <&q6_wcss_pd2>;
 	qcom,userpd-subsys-name = "q6v5_wcss_userpd2";
